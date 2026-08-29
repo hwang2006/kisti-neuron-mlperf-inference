@@ -762,72 +762,152 @@ safetensors files are present, the model preparation step is complete.
 
 ## 10. Download the MLCommons CNN/DailyMail Dataset
 
-Create the dataset directory:
+Create the dataset directory and define the dataset path:
 
 ```bash
+export INFER_ROOT=/scratch/$USER/mlperf-inference-llama31
+
 mkdir -p "${INFER_ROOT}/data/cnn-dailymail"
 
 export DATASET_PATH="${INFER_ROOT}/data/cnn-dailymail/cnn_eval.json"
 ```
 
-The MLCommons metadata URL:
+The MLCommons metadata URL for the Llama 3.1 8B CNN/DailyMail evaluation
+dataset is:
 
 ```text
 https://inference.mlcommons-storage.org/metadata/llama3-1-8b-cnn-eval.uri
 ```
 
-does not directly contain the JSON dataset. It contains a URI pointing to
+This `.uri` file is not the JSON dataset itself. It contains a pointer to
 the actual dataset location.
 
-For example, downloading this metadata file directly may produce a small
-text file containing:
+For example:
+
+```bash
+curl -fL \
+  https://inference.mlcommons-storage.org/metadata/llama3-1-8b-cnn-eval.uri
+```
+
+should return:
 
 ```text
 https://inference.mlcommons-storage.org/llama3.1_8b/datasets
 ```
 
-Therefore, do not save the `.uri` metadata file directly as
-`cnn_eval.json`.
+Do not download this `.uri` file directly as `cnn_eval.json`.
 
-Download the actual preprocessed MLCommons evaluation dataset using the
-MLCommons R2 downloader:
+For example, the following command is incorrect:
+
+```bash
+curl -L \
+  https://inference.mlcommons-storage.org/metadata/llama3-1-8b-cnn-eval.uri \
+  -o "${DATASET_PATH}"
+```
+
+This only creates a very small text file containing the dataset URL rather
+than the actual JSON dataset.
+
+### Download the MLCommons R2 Downloader
+
+On KISTI Neuron, use a user-specific temporary directory:
+
+```bash
+export TMPDIR=/tmp/$USER
+
+mkdir -p "${TMPDIR}"
+```
+
+Download the MLCommons R2 downloader script:
+
+```bash
+curl -fL \
+  https://raw.githubusercontent.com/mlcommons/r2-downloader/refs/heads/main/mlc-r2-downloader.sh \
+  -o "${TMPDIR}/mlc-r2-downloader.sh"
+```
+
+Verify the downloader script:
+
+```bash
+echo "=== DOWNLOADER FILE ==="
+ls -lh "${TMPDIR}/mlc-r2-downloader.sh"
+
+echo
+echo "=== DOWNLOADER LINE COUNT ==="
+wc -l "${TMPDIR}/mlc-r2-downloader.sh"
+
+echo
+echo "=== DOWNLOADER HEAD ==="
+head -20 "${TMPDIR}/mlc-r2-downloader.sh"
+```
+
+In the tested KISTI Neuron environment, the downloader script was
+approximately:
+
+```text
+34 KB
+956 lines
+```
+
+The first line should be:
+
+```text
+#!/bin/bash
+```
+
+### Download the Actual Dataset
+
+Create the destination directory if it does not already exist:
 
 ```bash
 mkdir -p "${INFER_ROOT}/data/cnn-dailymail"
+```
 
-bash <(curl -s \
-  https://raw.githubusercontent.com/mlcommons/r2-downloader/refs/heads/main/mlc-r2-downloader.sh) \
+Run the MLCommons downloader:
+
+```bash
+bash "${TMPDIR}/mlc-r2-downloader.sh" \
   -d "${INFER_ROOT}/data/cnn-dailymail" \
   https://inference.mlcommons-storage.org/metadata/llama3-1-8b-cnn-eval.uri
 ```
 
-After the download completes, set the dataset path:
+After the download completes, set the dataset path again:
 
 ```bash
 export DATASET_PATH="${INFER_ROOT}/data/cnn-dailymail/cnn_eval.json"
 ```
 
-Verify that the file exists and is substantially larger than the metadata
-URI file:
+### Verify the Downloaded Dataset
+
+Inspect the dataset directory:
 
 ```bash
+echo "=== DATASET DIRECTORY ==="
+
+ls -alh "${INFER_ROOT}/data/cnn-dailymail"
+```
+
+Verify that `cnn_eval.json` exists:
+
+```bash
+echo
 echo "=== DATASET FILE ==="
 
 ls -lh "${DATASET_PATH}"
 ```
 
-Do not continue if the file size is only a few bytes.
+Do not continue if the file is only a few bytes in size.
 
-A file such as:
+For example, a file of approximately:
 
 ```text
 61 bytes
 ```
 
-indicates that the `.uri` metadata file was downloaded instead of the
-actual dataset.
+indicates that the `.uri` metadata file was saved instead of the actual
+dataset.
 
-Verify that the file is valid JSON and check the sample count:
+Verify that the file contains valid JSON and check the number of samples:
 
 ```bash
 python - << "PY"
@@ -839,16 +919,16 @@ path = os.environ["DATASET_PATH"]
 with open(path, "r", encoding="utf-8") as f:
     data = json.load(f)
 
-print("Dataset path:", path)
-print("Samples     :", len(data))
-print("First keys  :", list(data[0].keys()))
+print("Dataset path :", path)
+print("Samples      :", len(data))
+print("First keys   :", list(data[0].keys()))
 PY
 ```
 
 Expected sample count:
 
 ```text
-Samples     : 13368
+Samples      : 13368
 ```
 
 Typical sample keys include:
@@ -860,25 +940,19 @@ output
 tok_input
 ```
 
-You can also verify the dataset file from the shell:
-
-```bash
-wc -c "${DATASET_PATH}"
-```
-
-and inspect only the beginning of the file:
+You can also inspect the beginning of the JSON file without printing the
+entire dataset:
 
 ```bash
 head -c 300 "${DATASET_PATH}"
 echo
 ```
 
-The file should contain JSON data rather than a single URL.
+The output should contain JSON content rather than a single URL.
 
-If the JSON parsing succeeds and the dataset contains 13,368 samples, the
+If JSON parsing succeeds and the dataset contains 13,368 samples, the
 dataset preparation step is complete.
 
----
 ---
 
 ## 11. Configure the Public Reproduction Scripts
