@@ -404,22 +404,84 @@ ${INFER_ROOT}/envs/mlperf-inference-v6
 
 ## 7. Install MLCommons LoadGen
 
-Install LoadGen from the same checked-out MLCommons repository:
+Install MLCommons LoadGen from the same checked-out MLCommons Inference
+repository used for this reproduction.
+
+Move to the MLCommons repository root:
 
 ```bash
 cd "${INFER_ROOT}/mlcommons-inference"
+```
 
+Install LoadGen in editable mode:
+
+```bash
 python -m pip install -e loadgen
 ```
 
-Verify:
+A successful installation should end with output similar to:
+
+```text
+Successfully built mlcommons_loadgen
+Successfully installed mlcommons_loadgen-6.0.2
+```
+
+Verify that LoadGen can be imported:
 
 ```bash
 python - << "PY"
 import mlperf_loadgen as lg
+
 print("MLPerf LoadGen import: OK")
 PY
 ```
+
+Expected output:
+
+```text
+MLPerf LoadGen import: OK
+```
+
+You can also verify the installed package version:
+
+```bash
+python -m pip show mlcommons-loadgen
+```
+
+For this reproduction, the expected version is:
+
+```text
+Version: 6.0.2
+```
+
+On KISTI Neuron, pip may display DNS warnings for:
+
+```text
+https://pypi.ngc.nvidia.com
+```
+
+If the installation subsequently continues and ends with:
+
+```text
+Successfully installed mlcommons_loadgen-6.0.2
+```
+
+the NVIDIA PyPI DNS warnings can be ignored.
+
+Before continuing, verify that the intended Conda environment is still active:
+
+```bash
+echo "${CONDA_PREFIX}"
+python --version
+```
+
+Expected Conda prefix:
+
+```text
+${INFER_ROOT}/envs/mlperf-inference-v6
+```
+
+---
 
 ---
 
