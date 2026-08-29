@@ -759,7 +759,6 @@ If the configuration and tokenizer load successfully and all required
 safetensors files are present, the model preparation step is complete.
 
 ---
----
 
 ## 10. Download the MLCommons CNN/DailyMail Dataset
 
