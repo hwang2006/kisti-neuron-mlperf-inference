@@ -254,7 +254,7 @@ If your Conda installation is elsewhere, adjust the path accordingly.
 source /scratch/$USER/miniconda3/etc/profile.d/conda.sh
 ```
 
-Create the environment:
+Create a new Conda environment for this reproduction:
 
 ```bash
 conda create -y \
@@ -268,7 +268,20 @@ Activate it:
 conda activate "${INFER_ROOT}/envs/mlperf-inference-v6"
 ```
 
-Upgrade basic Python packaging tools:
+Verify that the expected environment is active:
+
+```bash
+which python
+python --version
+```
+
+The Python executable should be located under:
+
+```text
+${INFER_ROOT}/envs/mlperf-inference-v6/
+```
+
+Upgrade the basic Python packaging tools:
 
 ```bash
 python -m pip install --upgrade pip setuptools wheel
@@ -281,6 +294,111 @@ cd "${INFER_ROOT}/mlcommons-inference/language/llama3.1-8b"
 
 python -m pip install -r requirements.txt
 ```
+
+After installation, verify the main software versions:
+
+```bash
+python - << "PY"
+import sys
+import torch
+import transformers
+import vllm
+
+print("Python       :", sys.version.split()[0])
+print("PyTorch      :", torch.__version__)
+print("CUDA build   :", torch.version.cuda)
+print("Transformers :", transformers.__version__)
+print("vLLM         :", getattr(vllm, "__version__", "unknown"))
+PY
+```
+
+In the current reproduction on KISTI Neuron, the environment was:
+
+```text
+Python       3.10.21
+PyTorch      2.4.0+cu121
+CUDA build   12.1
+Transformers 4.46.2
+vLLM         dev
+```
+
+The Python version differs slightly from the original experiment
+(`3.10.20` versus `3.10.21`), but the PyTorch and Transformers versions
+match the original environment.
+
+When importing vLLM, the following warning may appear:
+
+```text
+RuntimeWarning: Failed to read commit hash:
+No module named 'vllm._version'
+```
+
+In the current reproduction, vLLM therefore reports its version as:
+
+```text
+dev
+```
+
+This warning was also observed in the original benchmark environment and
+did not prevent benchmark execution.
+
+You can inspect the current pip configuration with:
+
+```bash
+python -m pip config list
+```
+
+On KISTI Neuron, the system-wide pip configuration may include the NVIDIA
+Python package index:
+
+```text
+global.extra-index-url='https://pypi.ngc.nvidia.com'
+global.trusted-host='pypi.ngc.nvidia.com'
+```
+
+If DNS resolution for `pypi.ngc.nvidia.com` is unavailable from a Neuron
+login node, pip may repeatedly print warnings such as:
+
+```text
+NameResolutionError:
+Failed to resolve 'pypi.ngc.nvidia.com'
+```
+
+For example:
+
+```text
+WARNING: Retrying ... after connection broken by
+'NameResolutionError(...)': /transformers/
+```
+
+This does not necessarily indicate an installation failure.
+
+If pip subsequently downloads the required packages from:
+
+```text
+https://pypi.org/simple
+```
+
+and the installation completes successfully, the NVIDIA index DNS warnings
+can be ignored.
+
+The important verification is that the required package versions can be
+imported successfully after installation.
+
+Before continuing, verify again that the Conda environment is active:
+
+```bash
+echo "${CONDA_PREFIX}"
+python --version
+```
+
+Expected Conda prefix:
+
+```text
+${INFER_ROOT}/envs/mlperf-inference-v6
+```
+
+---
 
 ---
 
