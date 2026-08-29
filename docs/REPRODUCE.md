@@ -1069,11 +1069,36 @@ hostname
 nvidia-smi
 ```
 
-Then run:
+Verify that two NVIDIA H200 GPUs are visible.
+
+Load the reproduction environment if needed:
 
 ```bash
+export INFER_ROOT=/scratch/$USER/mlperf-inference-llama31
+
 cd "${INFER_ROOT}/kisti-neuron-mlperf-inference"
 
+source scripts/common_env.sh
+```
+
+If the Conda environment is not already active:
+
+```bash
+source "${CONDA_SH}"
+conda activate "${ENV_DIR}"
+```
+
+Verify the main paths before starting the benchmark:
+
+```bash
+echo "MODEL_PATH   = ${MODEL_PATH}"
+echo "DATASET_PATH = ${DATASET_PATH}"
+echo "BENCH        = ${BENCH}"
+```
+
+Run the Offline performance benchmark:
+
+```bash
 ./scripts/run_offline_performance_2xh200.sh
 ```
 
@@ -1081,7 +1106,7 @@ The benchmark configuration is:
 
 ```text
 Scenario         Offline
-GPUs             2 x H200
+GPUs             2 x NVIDIA H200
 Tensor Parallel  2
 Batch Size       16
 Precision        BF16
@@ -1096,12 +1121,15 @@ Tokens per second  : 1971.72
 Result              : VALID
 ```
 
-The reproduced value does not have to be bit-for-bit identical because of
-runtime variation, GPU state, system sharing, filesystem activity, and other
-environmental effects.
+The reproduced result may vary slightly because of GPU state, system load,
+filesystem activity, and runtime variation.
 
-The important validation point is that the benchmark completes normally and
-LoadGen reports a valid result under the intended configuration.
+The important validation point is that the benchmark completes successfully
+and MLPerf LoadGen reports:
+
+```text
+Result is : VALID
+```
 
 ---
 
