@@ -1018,25 +1018,45 @@ python --version
 
 ---
 
-## 12. Required vLLM Multiprocessing Setting
+## 12. Set the vLLM Multiprocessing Method
 
-The original two-GPU run failed when CUDA was re-initialized from a
-fork-based subprocess.
-
-The following environment variable is therefore required:
+For the 2-GPU vLLM run on KISTI Neuron, use the `spawn` multiprocessing
+method:
 
 ```bash
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
 ```
 
-The public scripts set this automatically through `common_env.sh`.
-
-The original failure was:
+The repository already sets this value in:
 
 ```text
-RuntimeError: Cannot re-initialize CUDA in forked subprocess.
-To use CUDA with multiprocessing, you must use the spawn start method.
+scripts/common_env.sh
 ```
+
+Verify it after loading the common environment:
+
+```bash
+source scripts/common_env.sh
+
+echo "${VLLM_WORKER_MULTIPROC_METHOD}"
+```
+
+Expected output:
+
+```text
+spawn
+```
+
+This setting is required because the default fork-based multiprocessing path
+can fail when CUDA is re-initialized in a child process.
+
+A typical error is:
+
+```text
+RuntimeError: Cannot re-initialize CUDA in forked subprocess
+```
+
+If `spawn` is set correctly, continue to the Offline performance benchmark.
 
 ---
 
