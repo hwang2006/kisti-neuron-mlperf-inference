@@ -624,23 +624,141 @@ print("Model downloaded to:", local_dir)
 PY
 ```
 
-Verify:
+A successful download should finish with output similar to:
 
-```bash
-ls -lh "${MODEL_PATH}"
+```text
+Fetching 17 files: 100%
+Model downloaded to: /scratch/$USER/mlperf-inference-llama31/models/Llama-3.1-8B-Instruct
 ```
 
-The directory should contain files such as:
+Verify that the model directory exists and inspect its contents:
+
+```bash
+echo "=== MODEL DIRECTORY ==="
+ls -lh "${MODEL_PATH}"
+
+echo
+echo "=== MODEL FILE TREE ==="
+find "${MODEL_PATH}" -maxdepth 2 -type f | sort
+```
+
+The downloaded snapshot should include the Hugging Face Transformers model
+configuration, tokenizer files, and sharded safetensors weights.
+
+Important files include:
 
 ```text
 config.json
+generation_config.json
 tokenizer.json
 tokenizer_config.json
+special_tokens_map.json
 model.safetensors.index.json
 model-00001-of-00004.safetensors
-...
+model-00002-of-00004.safetensors
+model-00003-of-00004.safetensors
+model-00004-of-00004.safetensors
 ```
 
+The snapshot may also contain the original Meta model files under:
+
+```text
+original/
+```
+
+For example:
+
+```text
+original/consolidated.00.pth
+original/params.json
+original/tokenizer.model
+```
+
+The MLPerf/vLLM reproduction in this repository uses the Hugging Face
+Transformers-compatible files at the top level of `${MODEL_PATH}`.
+
+Verify the required Transformers/vLLM files explicitly:
+
+```bash
+echo "=== TRANSFORMERS FILE CHECK ==="
+
+for f in \
+  config.json \
+  tokenizer.json \
+  tokenizer_config.json \
+  model.safetensors.index.json
+do
+    if [ -f "${MODEL_PATH}/$f" ]; then
+        echo "OK: $f"
+    else
+        echo "MISSING: $f"
+    fi
+done
+```
+
+Expected output:
+
+```text
+OK: config.json
+OK: tokenizer.json
+OK: tokenizer_config.json
+OK: model.safetensors.index.json
+```
+
+Verify that all four safetensors weight shards are present:
+
+```bash
+echo "=== MODEL WEIGHT SHARDS ==="
+
+ls -lh "${MODEL_PATH}"/model-*.safetensors
+```
+
+Expected files:
+
+```text
+model-00001-of-00004.safetensors
+model-00002-of-00004.safetensors
+model-00003-of-00004.safetensors
+model-00004-of-00004.safetensors
+```
+
+You can also verify that Transformers can read the model configuration
+without loading the full model into GPU memory:
+
+```bash
+python - << "PY"
+import os
+from transformers import AutoConfig, AutoTokenizer
+
+model_path = os.environ["MODEL_PATH"]
+
+config = AutoConfig.from_pretrained(
+    model_path,
+    local_files_only=True,
+)
+
+tokenizer = AutoTokenizer.from_pretrained(
+    model_path,
+    local_files_only=True,
+)
+
+print("Model type       :", config.model_type)
+print("Architecture     :", config.architectures)
+print("Hidden size      :", config.hidden_size)
+print("Number of layers :", config.num_hidden_layers)
+print("Tokenizer class  :", tokenizer.__class__.__name__)
+print("Vocabulary size  :", len(tokenizer))
+print("Model files      : OK")
+PY
+```
+
+This validation intentionally loads only the model configuration and tokenizer.
+It does not load the 8B model weights into GPU memory.
+
+If the configuration and tokenizer load successfully and all required
+safetensors files are present, the model preparation step is complete.
+
+---
 ---
 
 ## 10. Download the MLCommons CNN/DailyMail Dataset
