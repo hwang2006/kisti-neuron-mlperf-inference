@@ -137,14 +137,27 @@ For strict reproduction, verify that the checked-out revision matches.
 
 ## 5. Verify the Llama 3.1 8B Reference Benchmark
 
-The benchmark directory should exist:
+Verify that the Llama 3.1 8B benchmark directory exists:
 
 ```bash
 ls -ld \
   "${INFER_ROOT}/mlcommons-inference/language/llama3.1-8b"
 ```
 
-Expected files include:
+Move to the benchmark directory:
+
+```bash
+cd "${INFER_ROOT}/mlcommons-inference/language/llama3.1-8b"
+```
+
+List the files:
+
+```bash
+ls -al
+```
+
+The directory should contain the MLCommons Llama 3.1 8B reference
+implementation. Important files include:
 
 ```text
 main.py
@@ -154,6 +167,64 @@ evaluation.py
 user.conf
 requirements.txt
 ```
+
+Verify these files explicitly:
+
+```bash
+for f in \
+  main.py \
+  SUT_VLLM.py \
+  dataset.py \
+  evaluation.py \
+  user.conf \
+  requirements.txt
+do
+    if [ -f "$f" ]; then
+        echo "OK: $f"
+    else
+        echo "MISSING: $f"
+    fi
+done
+```
+
+Expected output:
+
+```text
+OK: main.py
+OK: SUT_VLLM.py
+OK: dataset.py
+OK: evaluation.py
+OK: user.conf
+OK: requirements.txt
+```
+
+If any file is reported as `MISSING`, verify that the MLCommons Inference
+repository was cloned successfully and that the correct reference version is
+checked out.
+
+Verify the MLCommons tag and exact Git revision:
+
+```bash
+cd "${INFER_ROOT}/mlcommons-inference"
+
+git describe --tags --exact-match 2>/dev/null || true
+git rev-parse HEAD
+```
+
+For this reproduction, the expected version is:
+
+```text
+v6.0.0pre
+7f42a83e543660fd4699f1f85a05ef06b4dc334a
+```
+
+Return to the Llama 3.1 8B benchmark directory before continuing:
+
+```bash
+cd "${INFER_ROOT}/mlcommons-inference/language/llama3.1-8b"
+```
+
+---
 
 ---
 
