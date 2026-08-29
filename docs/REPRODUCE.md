@@ -866,7 +866,7 @@ mkdir -p "${INFER_ROOT}/data/cnn-dailymail"
 Run the MLCommons downloader:
 
 ```bash
-bash "${TMPDIR}/mlc-r2-downloader.sh" \
+/bin/bash "${TMPDIR}/mlc-r2-downloader.sh" \
   -d "${INFER_ROOT}/data/cnn-dailymail" \
   https://inference.mlcommons-storage.org/metadata/llama3-1-8b-cnn-eval.uri
 ```
