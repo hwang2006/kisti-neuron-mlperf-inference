@@ -955,47 +955,66 @@ dataset preparation step is complete.
 
 ---
 
-## 11. Configure the Public Reproduction Scripts
+## 11. Configure the Reproduction Environment
 
-Return to the KISTI repository:
-
-```bash
-cd "${INFER_ROOT}/kisti-neuron-mlperf-inference"
-```
-
-The scripts use:
-
-```text
-scripts/common_env.sh
-```
-
-By default, the scripts assume:
-
-```text
-INFER_ROOT=/scratch/$USER/mlperf-inference-llama31
-```
-
-Set explicit paths before running:
+Return to the KISTI Neuron MLPerf Inference repository:
 
 ```bash
 export INFER_ROOT=/scratch/$USER/mlperf-inference-llama31
 
-export MODEL_PATH="${INFER_ROOT}/models/Llama-3.1-8B-Instruct"
-
-export DATASET_PATH="${INFER_ROOT}/data/cnn-dailymail/cnn_eval.json"
+cd "${INFER_ROOT}/kisti-neuron-mlperf-inference"
 ```
 
-If Conda is installed somewhere other than:
-
-```text
-/scratch/$USER/miniconda3
-```
-
-set:
+Set the main paths:
 
 ```bash
-export CONDA_SH=/path/to/miniconda3/etc/profile.d/conda.sh
+export MODEL_PATH="${INFER_ROOT}/models/Llama-3.1-8B-Instruct"
+export DATASET_PATH="${INFER_ROOT}/data/cnn-dailymail/cnn_eval.json"
+export CONDA_SH=/scratch/$USER/miniconda3/etc/profile.d/conda.sh
 ```
+
+Load the repository environment:
+
+```bash
+source scripts/common_env.sh
+```
+
+Verify the effective configuration:
+
+```bash
+echo "INFER_ROOT   = ${INFER_ROOT}"
+echo "BENCH        = ${BENCH}"
+echo "ENV_DIR      = ${ENV_DIR}"
+echo "MODEL_PATH   = ${MODEL_PATH}"
+echo "DATASET_PATH = ${DATASET_PATH}"
+echo "RUNS_ROOT    = ${RUNS_ROOT}"
+```
+
+Verify that the important paths exist:
+
+```bash
+ls -ld "${BENCH}"
+ls -ld "${MODEL_PATH}"
+ls -lh "${DATASET_PATH}"
+ls -ld "${ENV_DIR}"
+```
+
+If the Conda environment is not active:
+
+```bash
+source "${CONDA_SH}"
+conda activate "${ENV_DIR}"
+```
+
+Verify:
+
+```bash
+which python
+python --version
+```
+
+> When entering a new compute node, set `INFER_ROOT` again and run
+> `source scripts/common_env.sh` before starting the benchmark.
 
 ---
 
