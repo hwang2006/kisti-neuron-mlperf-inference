@@ -487,7 +487,7 @@ ${INFER_ROOT}/envs/mlperf-inference-v6
 
 ## 8. Verify the Software Stack
 
-Run:
+Verify the main software components in the active Conda environment:
 
 ```bash
 python - << "PY"
@@ -495,26 +495,89 @@ import sys
 import torch
 import transformers
 import vllm
+import mlperf_loadgen
 
-print("Python      :", sys.version.split()[0])
-print("PyTorch     :", torch.__version__)
-print("CUDA avail. :", torch.cuda.is_available())
-print("Transformers:", transformers.__version__)
-print("vLLM        :", getattr(vllm, "__version__", "unknown"))
+print("Python       :", sys.version.split()[0])
+print("PyTorch      :", torch.__version__)
+print("CUDA build   :", torch.version.cuda)
+print("CUDA avail.  :", torch.cuda.is_available())
+print("Transformers :", transformers.__version__)
+print("vLLM         :", getattr(vllm, "__version__", "unknown"))
+print("LoadGen      : import OK")
 PY
 ```
 
-The original experiment used approximately:
+In the current KISTI Neuron reproduction environment, the result was:
+
+```text
+Python       : 3.10.21
+PyTorch      : 2.4.0+cu121
+CUDA build   : 12.1
+CUDA avail.  : True
+Transformers : 4.46.2
+vLLM         : dev
+LoadGen      : import OK
+```
+
+The original experiment used:
 
 ```text
 Python       3.10.20
 PyTorch      2.4.0+cu121
 Transformers 4.46.2
 vLLM         0.6.3
+LoadGen      6.0.2
 ```
 
-A vLLM warning related to a missing `_version` module was observed in the
-original environment but did not prevent benchmark execution.
+The reproduced environment therefore matches the original PyTorch,
+Transformers, and LoadGen software stack. The Python version differs only
+at the patch level (`3.10.20` versus `3.10.21`).
+
+Verify the installed LoadGen package version separately:
+
+```bash
+python -m pip show mlcommons-loadgen
+```
+
+Expected version:
+
+```text
+Version: 6.0.2
+```
+
+When importing vLLM, the following warning may appear:
+
+```text
+RuntimeWarning: Failed to read commit hash:
+No module named 'vllm._version'
+```
+
+In this case, vLLM may report:
+
+```text
+vLLM : dev
+```
+
+This warning was observed in the tested environment and did not prevent
+benchmark execution.
+
+The most important GPU check is:
+
+```text
+CUDA avail. : True
+```
+
+If this reports `False`, do not continue with the benchmark. Verify that the
+command is being executed on a GPU compute node with an active GPU
+allocation.
+
+You can also verify the visible GPUs with:
+
+```bash
+nvidia-smi
+```
+
+For the target benchmark run, two NVIDIA H200 GPUs should be visible.
 
 ---
 
