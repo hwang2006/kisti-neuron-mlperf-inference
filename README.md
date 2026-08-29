@@ -11,6 +11,17 @@ The experiments focus on Llama 3.1 8B Instruct and cover:
 - Server QPS tuning
 - Reference implementation portability issues on the KISTI Neuron system
 
+## Reproduction Guide
+
+For a step-by-step guide to reproducing the complete benchmark on
+2 x NVIDIA H200 GPUs on the KISTI Neuron system, see:
+
+**[docs/REPRODUCE.md](docs/REPRODUCE.md)**
+
+The reproduction guide covers environment setup, MLCommons reference
+checkout, model and dataset preparation, Offline performance, Accuracy,
+Server execution, QPS tuning, and troubleshooting.
+
 > **Note**
 >
 > The results in this repository are experimental/internal benchmark results.
