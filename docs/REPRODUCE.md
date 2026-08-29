@@ -1135,214 +1135,284 @@ Result is : VALID
 
 ## 14. Check Offline Performance Results
 
-The default result directory is:
+The Offline performance results are written under:
 
 ```text
 ${INFER_ROOT}/runs/offline-performance-2xh200
 ```
 
-Inspect:
+Check the result directory:
+
+```bash
+ls -alh "${INFER_ROOT}/runs/offline-performance-2xh200"
+```
+
+Inspect the MLPerf LoadGen summary:
 
 ```bash
 cat \
   "${INFER_ROOT}/runs/offline-performance-2xh200/mlperf_log_summary.txt"
 ```
 
-Useful checks:
+For a shorter check:
 
 ```bash
 grep -E \
-"Samples per second|Tokens per second|Result is" \
-"${INFER_ROOT}/runs/offline-performance-2xh200/mlperf_log_summary.txt"
+  "Samples per second|Tokens per second|Result is" \
+  "${INFER_ROOT}/runs/offline-performance-2xh200/mlperf_log_summary.txt"
 ```
 
-Expected original result:
+The original KISTI 2 x H200 result was:
 
 ```text
-Samples per second: 15.4041
-Tokens per second: 1971.72
+Samples per second : 15.4041
+Tokens per second  : 1971.72
 Result is : VALID
 ```
+
+The exact throughput may vary slightly between runs.
+
+The most important check is:
+
+```text
+Result is : VALID
+```
+
+If LoadGen reports `VALID`, continue to the Offline accuracy test.
 
 ---
 
 ## 15. Run Offline Accuracy
 
-Run:
+Make sure the reproduction environment is loaded:
 
 ```bash
+export INFER_ROOT=/scratch/$USER/mlperf-inference-llama31
+
 cd "${INFER_ROOT}/kisti-neuron-mlperf-inference"
 
+source scripts/common_env.sh
+```
+
+If necessary, activate the Conda environment:
+
+```bash
+source "${CONDA_SH}"
+conda activate "${ENV_DIR}"
+```
+
+Run the Offline accuracy benchmark:
+
+```bash
 ./scripts/run_offline_accuracy_2xh200.sh
 ```
 
-This performs:
+The script performs the MLPerf accuracy run and then evaluates the generated
+outputs using the MLCommons `evaluation.py` script.
 
-1. MLPerf accuracy inference
-2. creation of `mlperf_log_accuracy.json`
-3. ROUGE evaluation
-
-The public script explicitly uses:
+The evaluation command uses:
 
 ```text
 --dtype int32
 ```
 
-during evaluation.
-
-This is required because the tested reference evaluation path using int64
-caused:
-
-```text
-OverflowError: out of range integral type conversion attempted
-```
+This is intentional. In the tested environment, using the default int64
+decoding path caused an integer overflow during tokenizer decoding.
 
 ---
 
-## 16. Check Offline Accuracy
+## 16. Check Offline Accuracy Results
 
-The result directory is:
+The accuracy results are written under:
 
 ```text
 ${INFER_ROOT}/runs/offline-accuracy-2xh200
 ```
 
-Inspect:
+Inspect the result directory:
+
+```bash
+ls -alh "${INFER_ROOT}/runs/offline-accuracy-2xh200"
+```
+
+Check the evaluation output:
 
 ```bash
 cat \
   "${INFER_ROOT}/runs/offline-accuracy-2xh200/accuracy-evaluation-int32.txt"
 ```
 
-Original KISTI result:
+The original KISTI result was:
 
 ```text
-ROUGE-1    38.8414
-ROUGE-2    15.9717
-ROUGE-L    24.5673
-ROUGE-Lsum 35.8933
-gen_len    8162948
-gen_num    13368
+ROUGE-1    : 38.8414
+ROUGE-2    : 15.9717
+ROUGE-L    : 24.5673
+ROUGE-Lsum : 35.8933
+gen_len    : 8162948
+gen_num    : 13368
 ```
+
+The important checks are that all 13,368 samples are evaluated and that the
+ROUGE values are close to the original result.
 
 ---
 
 ## 17. Understand the Server Patch
 
-The upstream Server reference implementation did not operate reliably with
-the tested vLLM asynchronous execution path on the KISTI H200 environment.
+The upstream MLCommons Server implementation did not operate reliably with
+the tested vLLM asynchronous execution path on KISTI Neuron.
 
-The original upstream files remain unchanged.
+The original MLCommons files remain unchanged.
 
-KISTI-specific copies are provided under:
+KISTI-specific Server copies are provided under:
 
 ```text
 patches/
-|-- SUT_VLLM_serverfix.py
-|-- main_serverfix.py
-`-- README.md
+├── SUT_VLLM_serverfix.py
+├── main_serverfix.py
+└── README.md
 ```
 
-The principal change is that the Server worker uses a persistent asyncio
-event loop instead of creating and destroying an event loop for each request.
+The main change is the use of a persistent asyncio event loop for the Server
+worker instead of repeatedly creating and destroying an event loop for each
+request.
 
-The public Server scripts use the patch through `PYTHONPATH` and do not
-require overwriting the MLCommons reference files.
+The repository scripts load the patched implementation through `PYTHONPATH`.
 
-See:
+For details:
 
-```text
-patches/README.md
+```bash
+cat patches/README.md
 ```
-
-for details.
 
 ---
 
 ## 18. Run a Known-Valid Server Point
 
-The most straightforward Server reproduction point is:
+Start with the known-valid Server configuration:
 
 ```text
-Target QPS = 0.50
-Queries    = 800
+Target QPS : 0.50
+Queries    : 800
 ```
+
+Load the reproduction environment:
+
+```bash
+export INFER_ROOT=/scratch/$USER/mlperf-inference-llama31
+
+cd "${INFER_ROOT}/kisti-neuron-mlperf-inference"
+
+source scripts/common_env.sh
+```
+
+If necessary:
+
+```bash
+source "${CONDA_SH}"
+conda activate "${ENV_DIR}"
+```
+
+Run:
+
+```bash
+./scripts/run_server_qps05_800q.sh
+```
+
+The original 2 x H200 experiment produced:
+
+```text
+Result is : VALID
+```
+
+at target QPS 0.50.
+
+---
+
+## 19. Inspect the Server Result
+
+After the run completes, locate the generated result directory:
+
+```bash
+find "${RUNS_ROOT}" \
+  -name mlperf_log_summary.txt \
+  -type f \
+  -printf "%T@ %p\n" \
+  | sort -n \
+  | tail
+```
+
+Inspect the relevant summary:
+
+```bash
+cat /path/to/mlperf_log_summary.txt
+```
+
+Useful metrics include:
+
+```text
+Result is
+Completed samples per second
+Mean First Token latency
+99.00 percentile first token latency
+Mean Time per Output Token
+```
+
+A successful QPS 0.50 reproduction should report:
+
+```text
+Result is : VALID
+```
+
+---
+
+## 20. Run QPS = 0.546875
+
+The original experiment found that QPS 0.546875 was close to the
+VALID/INVALID transition.
 
 Run:
 
 ```bash
 cd "${INFER_ROOT}/kisti-neuron-mlperf-inference"
 
-./scripts/run_server_qps05_800q.sh
-```
-
-The original experiment produced a VALID result at this point.
-
----
-
-## 19. Run the Highest Tested VALID QPS Region
-
-The original binary search found:
-
-```text
-QPS 0.53750  -> VALID
-QPS 0.546875 -> INVALID, borderline
-```
-
-The observed transition region was therefore approximately:
-
-```text
-0.5375 < sustainable QPS < 0.546875
-```
-
-This boundary is statistical and should not be interpreted as an exact
-hardware limit.
-
----
-
-## 20. Run QPS = 0.546875
-
-Run:
-
-```bash
 ./scripts/run_server_qps0546875_800q.sh
 ```
 
 The original result was:
 
 ```text
-Result: INVALID
+INVALID
 ```
 
-but it was very close to satisfying the statistical early-stopping
-requirement.
+but it was close to satisfying the required latency behavior.
 
-The run was estimated to require only 38 additional clean queries.
+Because Server results near the boundary are sensitive to latency outliers,
+repeated runs may differ slightly.
 
 ---
 
-## 21. Run Near-Saturation Test
+## 21. Run a Higher-QPS Test
 
-Run:
+To observe behavior above the sustainable region, run:
 
 ```bash
 ./scripts/run_server_qps08_500q.sh
 ```
 
-The original result was INVALID.
-
-Typical behavior:
+The original result at target QPS 0.8 was:
 
 ```text
-TTFT p99 approached approximately 2 seconds
-TPOT remained near approximately 5 ms
+INVALID
 ```
 
-This indicates increasing request-queueing pressure.
+At higher request rates, TTFT increased significantly while TPOT remained
+relatively stable.
 
 ---
 
-## 22. Run Extreme Overload Test
+## 22. Run an Extreme Overload Test
 
 Run:
 
@@ -1350,31 +1420,32 @@ Run:
 ./scripts/run_server_extreme_qps15_500q.sh
 ```
 
-Original result:
+The original experiment at target QPS 1.5 showed approximately:
 
 ```text
-Target QPS          1.5
-Result              INVALID
-Completed samples/s approximately 1.45
-TTFT mean           approximately 7.23 s
-TTFT p99            approximately 17.88 s
-TPOT mean           approximately 5.10 ms
+Completed samples/s : 1.45
+TTFT mean           : 7.23 s
+TTFT p99            : 17.88 s
+TTFT maximum        : 18.90 s
+TPOT mean           : 5.10 ms
+TPOT p99            : 5.34 ms
+Result              : INVALID
 ```
 
-This demonstrates that under excessive request arrival rates the dominant
-problem is TTFT queueing rather than token-generation TPOT degradation.
+The large increase in TTFT indicates that queueing and scheduling delay
+dominate under overload.
 
 ---
 
 ## 23. Run Automated Server QPS Binary Search
 
-The repository provides:
+The repository includes:
 
 ```text
 scripts/run_server_qps_binary_search.sh
 ```
 
-Default parameters:
+The default search parameters are:
 
 ```text
 LOW         = 0.50
@@ -1386,10 +1457,12 @@ ITERATIONS  = 4
 Run:
 
 ```bash
+cd "${INFER_ROOT}/kisti-neuron-mlperf-inference"
+
 ./scripts/run_server_qps_binary_search.sh
 ```
 
-Parameters can be overridden:
+The parameters can also be overridden:
 
 ```bash
 LOW=0.50 \
@@ -1399,177 +1472,212 @@ ITERATIONS=4 \
 ./scripts/run_server_qps_binary_search.sh
 ```
 
-Generated configurations are placed under:
+Generated configurations are written under:
 
 ```text
 configs/generated/
 ```
 
-Run outputs are placed under:
+Binary-search results are written under:
 
 ```text
-${INFER_ROOT}/runs/server-qps-binary-search/
+${RUNS_ROOT}/server-qps-binary-search/
 ```
 
 ---
 
-## 24. Original Binary Search Result
+## 24. Original Server QPS Characterization
 
-The original H200 experiment produced approximately:
-
-| Target QPS | Result |
-|---:|---|
-| 0.65000 | INVALID |
-| 0.57500 | INVALID |
-| 0.53750 | VALID |
-| 0.55625 | INVALID |
-
-Additional testing produced:
-
-| Target QPS | Result |
-|---:|---|
-| 0.546875 | INVALID, borderline |
-
-Therefore:
+The original KISTI 2 x H200 measurements were:
 
 ```text
-highest tested VALID  = 0.53750
-lowest nearby INVALID = 0.546875
+Target QPS   Result
+----------   -------
+0.45         VALID
+0.50         VALID
+0.53750      VALID
+0.546875     INVALID, borderline
+0.55625      INVALID
+0.57500      INVALID
+0.65000      INVALID
+0.80000      INVALID
+1.50000      INVALID
 ```
+
+The highest tested VALID point was:
+
+```text
+0.53750
+```
+
+and the closest tested INVALID point was:
+
+```text
+0.546875
+```
+
+The observed transition region was therefore approximately:
+
+```text
+0.5375 < sustainable QPS < 0.546875
+```
+
+This should be interpreted as an experimentally observed region rather than
+an exact architectural limit.
 
 ---
 
-## 25. Server Latency Interpretation
+## 25. Interpret Server Latency
 
-The Server scenario evaluates more than raw throughput.
-
-Important metrics include:
-
-### TTFT
+Three metrics are particularly useful when analyzing the Server scenario:
 
 ```text
-Time To First Token
+QPS   Queries Per Second
+TTFT  Time To First Token
+TPOT  Time Per Output Token
 ```
 
-Time from request arrival until the first output token is returned.
+In the original experiment, TPOT remained close to approximately 5 ms over
+a relatively wide QPS range.
 
-### TPOT
+In contrast, TTFT increased sharply when the request rate exceeded the
+sustainable Server region.
 
-```text
-Time Per Output Token
-```
-
-Token-generation interval after the first token.
-
-### QPS
-
-```text
-Queries Per Second
-```
-
-Request arrival rate.
-
-The original experiment showed that TPOT remained close to 5 ms across a
-wide range of QPS values while TTFT increased dramatically under overload.
-
-This is consistent with queueing and scheduling becoming the dominant
-bottleneck.
+This indicates that request queueing and scheduling delay were the dominant
+overload effects rather than a major slowdown in token generation itself.
 
 ---
 
-## 26. Expected Differences Between Repeated Runs
+## 26. Expected Run-to-Run Variation
 
-Exact numerical reproduction is not guaranteed.
+Exact numerical reproduction is not expected.
 
-Small differences can result from:
+Results can vary because of GPU clock state, temperature, CPU scheduling,
+filesystem activity, background load, request timing, and vLLM runtime
+behavior.
 
-- GPU clock state
-- GPU temperature
-- other activity on a shared node
-- filesystem I/O
-- CPU scheduling
-- vLLM runtime behavior
-- request arrival randomness
-- LoadGen statistical early stopping
+Server measurements near the VALID/INVALID boundary are particularly
+sensitive to latency outliers.
 
-Server VALID/INVALID behavior near the boundary is especially sensitive to
-the number and distribution of latency outliers.
-
-For this reason:
+Therefore, results such as:
 
 ```text
-0.5375 VALID
-0.546875 borderline INVALID
+0.53750  VALID
+0.546875 INVALID
 ```
 
-should be treated as an experimentally observed transition region rather
-than an exact universal threshold.
+should be interpreted as a measured transition region rather than a
+deterministic threshold.
 
 ---
 
-## 27. Verify No Leftover GPU Processes
+## 27. Check for Leftover GPU Processes
 
-Before starting another vLLM benchmark, check:
+Before starting another benchmark, check for existing GPU processes:
 
 ```bash
 nvidia-smi \
   --query-compute-apps=pid,process_name,used_memory \
-  --format=csv,noheader
+  --format=csv
 ```
 
-An orphaned vLLM worker can retain a large amount of H200 memory and cause
-the next run to fail with CUDA out-of-memory errors.
+An orphaned vLLM worker may retain a large amount of GPU memory and cause
+the next run to fail with an out-of-memory error.
 
-Do not use a broad `pkill` unless the process ownership and PID have first
-been verified.
+Verify process ownership before terminating any process.
 
 ---
 
 ## 28. Troubleshooting
 
+### Conda environment is not active
+
+If Python reports errors such as:
+
+```text
+ModuleNotFoundError: No module named 'torch'
+```
+
+reload the environment:
+
+```bash
+export INFER_ROOT=/scratch/$USER/mlperf-inference-llama31
+
+cd "${INFER_ROOT}/kisti-neuron-mlperf-inference"
+
+source scripts/common_env.sh
+source "${CONDA_SH}"
+conda activate "${ENV_DIR}"
+```
+
+Verify:
+
+```bash
+which python
+python --version
+```
+
+### Environment variables disappear on a compute node
+
+Environment variables set in a previous shell may not be available after
+entering another node.
+
+Set:
+
+```bash
+export INFER_ROOT=/scratch/$USER/mlperf-inference-llama31
+
+cd "${INFER_ROOT}/kisti-neuron-mlperf-inference"
+
+source scripts/common_env.sh
+```
+
+before running the benchmark.
+
 ### CUDA fork error
 
-Symptom:
+If you see:
 
 ```text
 Cannot re-initialize CUDA in forked subprocess
 ```
 
-Solution:
+verify:
 
 ```bash
-export VLLM_WORKER_MULTIPROC_METHOD=spawn
+echo "${VLLM_WORKER_MULTIPROC_METHOD}"
+```
+
+Expected:
+
+```text
+spawn
 ```
 
 ### Accuracy tokenizer overflow
 
-Symptom:
-
-```text
-OverflowError: out of range integral type conversion attempted
-```
-
-Solution:
+If accuracy evaluation reports an integer conversion overflow, use:
 
 ```text
 --dtype int32
 ```
 
-The public accuracy script already contains this setting.
+The repository accuracy script already uses this setting.
 
-### Server stalls after first request
+### Server stalls
 
-Use the KISTI Server patch included under:
+Use the KISTI Server implementation under:
 
 ```text
 patches/
 ```
 
-and execute Server through the repository-provided scripts.
+through the provided Server scripts rather than replacing the upstream
+MLCommons files.
 
 ### Server shutdown warnings
 
-Some Server runs may finish with warnings such as:
+Some Server runs may finish with messages such as:
 
 ```text
 Task was destroyed but it is pending!
@@ -1577,34 +1685,37 @@ Task was destroyed but it is pending!
 
 or multiprocessing shared-memory cleanup warnings.
 
-These were observed after successful LoadGen completion.
-
-They indicate an incomplete asynchronous-engine cleanup path and should be
-resolved before treating the implementation as formal submission-quality
-code.
+These warnings were observed after LoadGen completed, but the asynchronous
+engine cleanup should be improved before treating the implementation as
+formal submission-quality code.
 
 ---
 
 ## 29. Reproduction Checklist
 
-Before considering the experiment reproduced, verify:
+Before considering the benchmark reproduced, verify:
 
 ```text
-[ ] Running on allocated H200 compute node
-[ ] 2 x NVIDIA H200 visible
+[ ] Running on an allocated H200 compute node
+[ ] Two NVIDIA H200 GPUs visible
 [ ] MLCommons inference v6.0.0pre checked out
-[ ] Reference commit verified
-[ ] Python environment created
-[ ] LoadGen installed
+[ ] Reference commit 7f42a83e... verified
+[ ] Conda environment active
+[ ] PyTorch 2.4.0+cu121
+[ ] Transformers 4.46.2
+[ ] LoadGen 6.0.2
 [ ] Llama 3.1 8B Instruct downloaded
-[ ] Exact model revision recorded
-[ ] CNN/DailyMail dataset contains 13,368 samples
+[ ] Model revision 0e9e39f... used
+[ ] Model config/tokenizer/safetensors verified
+[ ] cnn_eval.json downloaded using MLCommons R2 downloader
+[ ] Dataset MD5 verification passed
+[ ] Dataset contains 13,368 samples
 [ ] VLLM_WORKER_MULTIPROC_METHOD=spawn
 [ ] Offline Performance completed
 [ ] Offline LoadGen result checked
 [ ] Offline Accuracy completed
 [ ] ROUGE values checked
-[ ] Server QPS=0.50 completed
+[ ] Server QPS 0.50 tested
 [ ] Server patch used
 [ ] Server summary inspected
 ```
@@ -1613,7 +1724,7 @@ Before considering the experiment reproduced, verify:
 
 ## 30. Original KISTI Reference Results
 
-### Offline
+### Offline Performance
 
 ```text
 Samples/s : 15.4041
@@ -1621,13 +1732,14 @@ Tokens/s  : 1971.72
 Result     : VALID
 ```
 
-### Accuracy
+### Offline Accuracy
 
 ```text
 ROUGE-1    : 38.8414
 ROUGE-2    : 15.9717
 ROUGE-L    : 24.5673
 ROUGE-Lsum : 35.8933
+Samples    : 13368
 ```
 
 ### Server
@@ -1645,25 +1757,17 @@ QPS 1.50      : INVALID
 
 ## 31. Official MLPerf Submission Note
 
-Successful reproduction of these experiments does not by itself constitute
-an official MLPerf submission.
+The experiments in this repository are intended for performance
+characterization and reproducibility.
 
-Formal submission additionally requires the applicable MLCommons:
+They are not official MLCommons-published MLPerf results.
 
-- model requirements
-- dataset requirements
-- system metadata
-- submitter metadata
-- performance run structure
-- accuracy run structure
-- compliance tests
-- submission checker
-- reproducibility requirements
-- division-specific rules
+A formal MLPerf submission requires additional submission metadata,
+compliance tests, result organization, submission checking, and adherence
+to the rules of the applicable MLPerf division.
 
-The Server patch in this repository must also be reviewed against the
-requirements of the intended MLPerf submission division before it is used
-for a formal submission.
+The KISTI Server patch should also be reviewed against the requirements of
+the intended submission division before being used for a formal submission.
 
 ---
 
@@ -1671,17 +1775,26 @@ for a formal submission.
 
 MLCommons Inference:
 
+```text
 https://github.com/mlcommons/inference
+```
 
-KISTI Neuron MLPerf Inference repository:
+KISTI Neuron MLPerf Inference:
 
+```text
 https://github.com/hwang2006/kisti-neuron-mlperf-inference
+```
 
 KISTI Neuron User Guide:
 
+```text
 https://docs-ksc.gitbook.io/neuron-user-guide/
+```
 
 Meta Llama 3.1 8B Instruct:
 
+```text
 https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct
+```
 
+---
