@@ -1,0 +1,36 @@
+# Models and datasets
+models/
+data/
+
+# Python / Conda environments
+envs/
+.venv/
+__pycache__/
+*.pyc
+
+# MLC cache
+mlc/
+
+# Containers
+*.sif
+
+# MLPerf raw accuracy logs
+mlperf_log_accuracy.json
+
+# Credentials / tokens
+.git-credentials
+.env
+*token*
+
+# Temporary / editor files
+*.tmp
+*.bak
+*.swp
+*~
+
+# Large raw runtime logs
+logs/
+runs/
+
+# Slurm outputs
+slurm-*.out

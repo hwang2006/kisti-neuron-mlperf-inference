@@ -1,0 +1,10 @@
+target_qps,result,notes
+0.45,VALID,700-query validation run
+0.50,VALID,800-query run
+0.53750,VALID,800-query binary-search run
+0.546875,INVALID,borderline; 38 additional clean queries estimated
+0.55625,INVALID,800-query binary-search run
+0.57500,INVALID,800-query binary-search run
+0.65000,INVALID,800-query binary-search run
+0.80000,INVALID,500-query near-saturation test
+1.50000,INVALID,500-query overload test
