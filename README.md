@@ -225,9 +225,6 @@ The generated MLPerf accuracy log itself was not modified.
 
 The Server scenario was evaluated on the same 2 x NVIDIA H200 configuration.
 
-The primary goal was to determine the sustainable request rate while
-satisfying the MLPerf latency constraints.
-
 The Server workload was executed using:
 
 ```text
@@ -239,14 +236,86 @@ Scenario         : Server
 Backend          : vLLM AsyncLLMEngine
 ```
 
+A key finding during reproduction was that **CPU/NUMA placement materially affected
+Server tail latency**.
+
+On `gpu54`, the two allocated H200 GPUs are local to NUMA node 1. The Slurm job
+provided 16 CPU cores split across the two NUMA nodes:
+
+```text
+NUMA 0 : 16-21,26-27
+NUMA 1 : 48-52,57-59
+```
+
+The GPU-local CPU set was:
+
+```text
+48-52,57-59
+```
+
+Without explicit NUMA binding, repeated QPS 0.50 runs showed unstable TTFT tail
+latency and could fail MLPerf statistical early stopping even when the observed
+p99 TTFT remained below the configured 2.0 s limit.
+
+Binding the Server benchmark to the GPU-local NUMA node restored stable behavior:
+
+```bash
+numactl \
+  --physcpubind=48-52,57-59 \
+  --membind=1 \
+  /bin/bash ./scripts/run_server_qps05_800q.sh
+```
+
+### Reproduced Server Results on gpu54
+
+| Target QPS | Queries | CPU/NUMA placement | Result | Mean TTFT | p99 TTFT | Mean TPOT |
+|---:|---:|---|---|---:|---:|---:|
+| 0.5000 | 800 | default | INVALID | 198.0 ms | 1.597 s | 5.150 ms |
+| 0.5000 | 800 | NUMA1 pinned | **VALID** | 194.3 ms | 1.550 s | 5.117 ms |
+| 0.5375 | 800 | NUMA1 pinned | **VALID** | 212.6 ms | 1.566 s | 5.112 ms |
+
+For the reproduced QPS 0.5375 run:
+
+```text
+Completed samples per second : 0.53
+Completed tokens per second  : 67.56
+Result is                    : VALID
+
+Performance constraints      : Yes
+Min duration                 : Yes
+Min queries                  : Yes
+Early stopping               : Yes
+
+Mean TTFT                    : 212.63 ms
+p99 TTFT                     : 1.566 s
+Max TTFT                     : 2.168 s
+
+Mean TPOT                    : 5.112 ms
+p99 TPOT                     : 5.414 ms
+```
+
+The configured Server latency limits were:
+
+```text
+TTFT : 2.0 s
+TPOT : 100 ms
+```
+
+These observations indicate that reproducible Server measurements depend not only
+on GPU throughput but also on CPU scheduling and NUMA locality. In this test
+environment, GPU-local CPU and memory binding significantly improved TTFT tail
+stability.
+
 ---
 
 ## 10. Server QPS Tuning
 
-Several bounded Server runs were performed to characterize the sustainable
-QPS region.
+Several bounded Server runs were performed to characterize the sustainable QPS
+region.
 
-Observed results were:
+### Original characterization
+
+The earlier experiments, performed primarily on `gpu55`, produced:
 
 | Target QPS | Result |
 |---:|---|
@@ -272,25 +341,46 @@ The observed transition region was approximately:
 0.5375 < sustainable QPS < 0.546875
 ```
 
-The QPS 0.546875 run was particularly close to passing. It processed
-800 queries and would have required only 38 additional requests satisfying
-the latency condition for statistical early stopping.
+### Reproduction on gpu54
 
-Therefore, the measured boundary should be interpreted as an approximate
-operating region rather than a deterministic single-point limit.
+Initial runs on `gpu54` without explicit NUMA binding showed substantial
+run-to-run TTFT tail variability. For example, a QPS 0.50 / 1200-query rerun
+had:
+
+```text
+Mean TTFT : approximately 0.222 s
+p99 TTFT  : approximately 1.776 s
+Max TTFT  : approximately 6.784 s
+```
+
+while TPOT remained near 5.16 ms.
+
+After binding the process and memory to GPU-local NUMA node 1, QPS 0.50 and
+QPS 0.5375 both reproduced as VALID with 800 queries.
+
+The next characterization point is:
+
+```text
+QPS 0.546875 / 800 queries / NUMA1 pinned
+```
+
+The QPS boundary should be interpreted as an approximate operating region rather
+than a deterministic single-point limit.
 
 ---
 
 ## 11. Server Latency Behavior
 
-The Server scenario showed a clear distinction between first-token latency
-and token-generation latency.
+The Server scenario showed a clear distinction between first-token latency and
+token-generation latency.
 
-At moderate QPS values:
+- **TTFT (Time To First Token)** measures the time from request arrival until the
+  first output token is returned.
+- **TPOT (Time Per Output Token)** measures the average time required for
+  subsequent generated tokens.
 
-- TTFT remained relatively low for most requests
-- TPOT stayed near approximately 5 ms
-- MLPerf latency constraints could be satisfied
+At moderate QPS values, TPOT stayed close to approximately 5 ms while TTFT was
+more sensitive to request scheduling, CPU placement, and queueing.
 
 At excessive request rates, request queueing increased sharply.
 
@@ -308,8 +398,11 @@ TPOT p99             : approximately 5.34 ms
 The token-generation time remained nearly unchanged while TTFT increased
 dramatically.
 
-This indicates that the dominant saturation behavior was request queueing
-and scheduling delay rather than degradation of the token-generation kernel.
+This indicates that the dominant saturation behavior was request queueing and
+scheduling delay rather than degradation of the token-generation kernel.
+
+The NUMA-pinning experiments further showed that CPU locality can affect TTFT
+tail stability even when GPU-side TPOT remains nearly unchanged.
 
 ---
 
@@ -513,7 +606,7 @@ However, the asynchronous engine shutdown lifecycle should be cleaned up
 before treating the modified Server implementation as submission-quality
 code.
 
-### 12.9 Server QPS Tuning Configuration
+### 12.9 Server QPS Tuning and NUMA Placement
 
 The original MLCommons `user.conf` defines a target QPS and minimum duration.
 
@@ -529,9 +622,28 @@ target QPS
 
 These tuning runs were used to identify the sustainable QPS region.
 
-They should not be interpreted as official MLPerf submission runs.
+During reproduction on `gpu54`, the Slurm allocation exposed 16 CPU cores across
+both NUMA nodes, while the allocated H200 GPUs were local to NUMA node 1.
+Explicitly binding the Server benchmark to the GPU-local CPU set:
+
+```text
+48-52,57-59
+```
+
+and memory node:
+
+```text
+NUMA node 1
+```
+
+significantly improved TTFT tail stability and reproduced VALID results at
+QPS 0.50 and QPS 0.5375 with 800 queries.
+
+These tuning runs are performance-engineering measurements and should not be
+interpreted as official MLPerf submission runs.
 
 ---
+
 
 ## 13. Reference Code Preservation
 
@@ -672,6 +784,7 @@ The current study has several limitations.
 - The Offline scenario used the upstream reference SUT.
 - The Server scenario required a KISTI-specific portability patch.
 - Server QPS tuning runs used bounded query counts for characterization.
+- Server TTFT tail latency was sensitive to CPU/NUMA placement; GPU-local NUMA binding improved reproducibility on `gpu54`.
 - The model artifact differs from the older revision listed in the
   MLCommons reference documentation.
 - Some asynchronous vLLM shutdown warnings remain.
@@ -756,4 +869,3 @@ The benchmark experiments documented in this repository were performed on
 the KISTI Neuron GPU cluster.
 
 The MLPerf benchmark suite and reference implementations are provided by
-MLCommons.
